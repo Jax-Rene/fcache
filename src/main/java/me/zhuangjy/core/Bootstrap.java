@@ -5,7 +5,9 @@ import io.netty.channel.Channel;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 public class Bootstrap {
 
     private static final int PORT = 8897;
@@ -22,7 +24,7 @@ public class Bootstrap {
                     .childHandler(new HttpStaticFileServerInitializer());
 
             Channel ch = b.bind(PORT).sync().channel();
-            System.err.println("Open your web browser and navigate to http://127.0.0.1:" + PORT + '/');
+            log.info("Open your web browser and navigate to http://127.0.0.1:{}/", PORT);
             ch.closeFuture().sync();
         } finally {
             bossGroup.shutdownGracefully();
