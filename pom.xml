@@ -20,6 +20,7 @@
         <commons.configuration.version>1.10</commons.configuration.version>
         <lombok.version>1.18.8</lombok.version>
         <guava.version>25.1-jre</guava.version>
+        <hikaricp.version>3.3.1</hikaricp.version>
     </properties>
 
     <dependencies>
@@ -63,6 +64,12 @@
             <groupId>com.google.guava</groupId>
             <artifactId>guava</artifactId>
             <version>${guava.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.zaxxer</groupId>
+            <artifactId>HikariCP</artifactId>
+            <version>${hikaricp.version}</version>
         </dependency>
     </dependencies>
 
