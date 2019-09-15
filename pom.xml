@@ -17,10 +17,12 @@
         <netty.version>4.1.39.Final</netty.version>
         <slf4j.log4j12.version>1.7.7</slf4j.log4j12.version>
         <commons.lang3.version>3.8.1</commons.lang3.version>
+        <commons.collections.version>3.2.2</commons.collections.version>
         <commons.configuration.version>1.10</commons.configuration.version>
         <lombok.version>1.18.8</lombok.version>
         <guava.version>25.1-jre</guava.version>
         <hikaricp.version>3.3.1</hikaricp.version>
+        <fastjson.version>1.2.60</fastjson.version>
     </properties>
 
     <dependencies>
@@ -49,6 +51,12 @@
         </dependency>
 
         <dependency>
+            <groupId>commons-collections</groupId>
+            <artifactId>commons-collections</artifactId>
+            <version>3.2.2</version>
+        </dependency>
+
+        <dependency>
             <groupId>commons-configuration</groupId>
             <artifactId>commons-configuration</artifactId>
             <version>${commons.configuration.version}</version>
@@ -70,6 +78,12 @@
             <groupId>com.zaxxer</groupId>
             <artifactId>HikariCP</artifactId>
             <version>${hikaricp.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.alibaba</groupId>
+            <artifactId>fastjson</artifactId>
+            <version>${fastjson.version}</version>
         </dependency>
     </dependencies>
 

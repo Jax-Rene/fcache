@@ -9,5 +9,12 @@ public interface ConstantUtil {
     String JDBC_URL = "jdbc.mysql.url";
     String JDBC_USERNAME = "jdbc.mysql.username";
     String JDBC_PASSWORD = "jdbc.mysql.password";
+    String DEFAULT_DS = "defaultDs";
+
+    /**
+     * Strategy
+     */
+    String SQL_STRATEGY = "sql";
+
 
 }
