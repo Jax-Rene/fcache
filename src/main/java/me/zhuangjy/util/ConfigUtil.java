@@ -1,10 +1,13 @@
 package me.zhuangjy.util;
 
+import com.zaxxer.hikari.util.SuspendResumeLock;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.configuration.ConfigurationException;
 import org.apache.commons.configuration.PropertiesConfiguration;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 
@@ -44,5 +47,14 @@ public class ConfigUtil {
 
     public static PropertiesConfiguration getConfiguration() {
         return configuration;
+    }
+    public static void main(String[] args) throws Exception {
+        long now = System.currentTimeMillis();
+        File file = new File("C:\\Users\\Administrator\\Desktop\\mytestfile.csv");
+        try (InputStream inputStream = new FileInputStream(file)) {
+            System.out.println(DigestUtils.md5Hex(inputStream));
+        }
+        System.out.println("cost:" + (System.currentTimeMillis() - now));
+//        9c2a661742a8dd1d324b23f53bbec7e9
     }
 }

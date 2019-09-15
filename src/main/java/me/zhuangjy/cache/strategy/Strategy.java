@@ -7,6 +7,6 @@ import me.zhuangjy.bean.CacheInfo;
  */
 public interface Strategy {
 
-    void fresh(CacheInfo cacheInfo);
+    void fresh(CacheInfo cacheInfo) throws Exception;
 
 }

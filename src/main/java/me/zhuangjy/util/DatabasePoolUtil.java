@@ -6,14 +6,8 @@ import com.google.common.base.Preconditions;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
+import java.sql.*;
+import java.util.*;
 
 /**
  * 数据库连接池
@@ -64,22 +58,40 @@ public class DatabasePoolUtil {
      * 根据输入SQL执行结果后格式化返回
      *
      * @param sql
-     * @param args
      * @return
      * @throws SQLException
      */
-    public static List<Map<String, Object>> getResult(HikariDataSource ds, String sql, String... args) throws SQLException {
-        List<Map<String, Object>> results = new LinkedList<>();
+    public static List<Map<String, Object>> getResult(HikariDataSource ds, String sql) throws SQLException {
         try (Connection connection = ds.getConnection();
              PreparedStatement pstmt = connection.prepareStatement(sql);
              ResultSet rs = pstmt.executeQuery()) {
-            while (rs.next()) {
-                Map<String, Object> map = new HashMap<>(14);
-                for (String arg : args) {
-                    map.put(arg, rs.getObject(arg));
-                }
-                results.add(map);
+            return rs2MapList(rs);
+        }
+    }
+
+    /**
+     * Result set covert to map
+     *
+     * @param rs
+     * @return
+     * @throws SQLException
+     */
+    private static List<Map<String, Object>> rs2MapList(ResultSet rs) throws SQLException {
+        List<Map<String, Object>> results = new LinkedList<>();
+        ResultSetMetaData metaData = rs.getMetaData();
+        int colCount = metaData.getColumnCount();
+        List<String> colNameList = new ArrayList<>();
+        for (int i = 0; i < colCount; i++) {
+            colNameList.add(metaData.getColumnLabel(i + 1));
+        }
+
+        while (rs.next()) {
+            Map<String, Object> map = new HashMap<>();
+            for (String key : colNameList) {
+                Object value = rs.getString(key);
+                map.put(key, value);
             }
+            results.add(map);
         }
         return results;
     }

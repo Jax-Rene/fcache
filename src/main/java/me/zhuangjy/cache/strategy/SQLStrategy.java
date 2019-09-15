@@ -2,13 +2,13 @@ package me.zhuangjy.cache.strategy;
 
 import lombok.extern.slf4j.Slf4j;
 import me.zhuangjy.bean.CacheInfo;
+import me.zhuangjy.cache.CacheLoader;
 import me.zhuangjy.util.DatabasePoolUtil;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.SQLException;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
-import static me.zhuangjy.cache.CacheLoader.getDatabaseInfo;
 
 /**
  * MySQL 缓存加载策略
@@ -20,15 +20,22 @@ import static me.zhuangjy.cache.CacheLoader.getDatabaseInfo;
 public class SQLStrategy implements Strategy {
 
     @Override
-    public void fresh(CacheInfo cacheInfo) {
+    public void fresh(CacheInfo cacheInfo) throws Exception {
         String cacheName = cacheInfo.getName();
         String database = cacheInfo.getDatabase();
         String sql = cacheInfo.getContent();
-        String databaseInfo = getDatabaseInfo(database);
-        try (Connection connection = DatabasePoolUtil.getDS(database, databaseInfo).getConnection();
-             PreparedStatement pstmt = connection.prepareStatement(sql)) {
-        } catch (SQLException e) {
-            log.error(e.getMessage(), e);
+        String databaseInfo = CacheLoader.getInstance().getDatabaseInfo(database);
+
+        // 执行SQL
+        List<Map<String, Object>> resultDatas = DatabasePoolUtil.getResult(DatabasePoolUtil.getDS(database, databaseInfo), sql);
+        if (resultDatas.size() > 0) {
+            Set<String> columns = resultDatas.get(0).keySet();
+            for (String column : columns) {
+
+            }
+
+        } else {
+            log.warn("cache:{} get empty!", cacheName);
         }
     }
 

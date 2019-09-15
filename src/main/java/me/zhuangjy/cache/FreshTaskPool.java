@@ -54,7 +54,7 @@ public class FreshTaskPool {
         @Override
         public void run() {
             try {
-                CacheLoader.fresh(taskName);
+                CacheLoader.getInstance().freshCache(taskName);
             } catch (Exception e) {
                 log.error(e.getMessage(), e);
             } finally {
