@@ -27,6 +27,7 @@ public class CacheDBInfoLoader implements Loader {
      */
     @Override
     public void refreshView() throws Exception {
+        log.info("start refresh database info");
         String sql = "SELECT name,db_info FROM source_db_info";
         Map<String, String> tmp = new HashMap<>(cacheDBInfoView.size());
         List<Map<String, Object>> list = DatabasePoolUtil.getResult(DatabasePoolUtil.getDS(), sql);
@@ -34,6 +35,7 @@ public class CacheDBInfoLoader implements Loader {
                 MapUtils.getString(c, "name"),
                 MapUtils.getString(c, "db_info")));
         cacheDBInfoView = tmp;
+        log.info("refresh database info suc. size:{}", cacheDBInfoView.size());
     }
 
 }

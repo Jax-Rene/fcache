@@ -12,6 +12,10 @@ import java.sql.SQLException;
  */
 public enum StrategySelector {
 
+    /**
+     * SQL策略
+     * 执行SQL语句查询对应数据库信息，然后以列式存储方式存储数据
+     */
     SQL(ConstantUtil.SQL_STRATEGY, new SQLStrategy());
 
     private String type;
@@ -25,17 +29,17 @@ public enum StrategySelector {
     /**
      * 根据类别名称获取策略
      *
-     * @param name
+     * @param type
      * @return
      * @throws SQLException
      */
-    public static Strategy getStrategy(String name) {
+    public static Strategy getStrategy(String type) {
         for (StrategySelector selector : StrategySelector.values()) {
-            if (selector.type.equals(name)) {
+            if (selector.type.equalsIgnoreCase(type)) {
                 return selector.strategy;
             }
         }
-        throw new UnsupportedOperationException("No found cache type of name " + name);
+        throw new UnsupportedOperationException("No found cache type of name " + type);
     }
 
 }

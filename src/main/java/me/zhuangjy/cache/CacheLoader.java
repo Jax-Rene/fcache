@@ -93,8 +93,8 @@ public class CacheLoader {
      * @param cacheName
      */
     public void freshCache(String cacheName) throws Exception {
-        Strategy strategy = getStrategy(cacheName);
         CacheInfo cacheInfo = getCacheInfo(cacheName);
+        Strategy strategy = StrategySelector.getStrategy(cacheInfo.getType());
         strategy.fresh(cacheInfo);
 
         // 设置缓存过期时间
@@ -122,14 +122,4 @@ public class CacheLoader {
         return Preconditions.checkNotNull(cacheDBInfoLoader.getCacheDBInfoView().get(dbName));
     }
 
-    /**
-     * 根据缓存名称获取解析策略
-     *
-     * @param cacheName
-     * @return
-     */
-    private Strategy getStrategy(String cacheName) {
-        return Preconditions.checkNotNull(StrategySelector
-                .getStrategy(MapUtils.getString(cacheViewLoader.getCacheView(), cacheName, "")));
-    }
 }

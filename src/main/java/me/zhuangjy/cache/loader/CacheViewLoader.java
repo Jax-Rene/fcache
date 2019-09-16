@@ -16,7 +16,7 @@ import java.util.Map;
 public class CacheViewLoader implements Loader {
 
     /**
-     * 维护 CacheName -> CacheType
+     * 维护 CacheName -> CacheInfo
      **/
     private Map<String, CacheInfo> cacheView = Collections.emptyMap();
 

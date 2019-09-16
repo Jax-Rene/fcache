@@ -7,6 +7,12 @@ import me.zhuangjy.bean.CacheInfo;
  */
 public interface Strategy {
 
+    /**
+     * 定义策略刷新逻辑
+     *
+     * @param cacheInfo
+     * @throws Exception
+     */
     void fresh(CacheInfo cacheInfo) throws Exception;
 
 }

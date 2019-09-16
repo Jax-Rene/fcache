@@ -1,6 +1,5 @@
 package me.zhuangjy.util;
 
-import com.zaxxer.hikari.util.SuspendResumeLock;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.configuration.ConfigurationException;

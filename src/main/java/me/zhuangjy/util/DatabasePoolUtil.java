@@ -86,7 +86,7 @@ public class DatabasePoolUtil {
         }
 
         while (rs.next()) {
-            Map<String, Object> map = new HashMap<>();
+            Map<String, Object> map = new HashMap<>(16);
             for (String key : colNameList) {
                 Object value = rs.getString(key);
                 map.put(key, value);
