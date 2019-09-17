@@ -3,15 +3,16 @@ package me.zhuangjy.cache;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import lombok.extern.slf4j.Slf4j;
+import me.zhuangjy.bean.CacheFile;
 import me.zhuangjy.bean.CacheInfo;
 import me.zhuangjy.cache.loader.CacheDBInfoLoader;
 import me.zhuangjy.cache.loader.CacheDiskFileLoader;
 import me.zhuangjy.cache.loader.CacheViewLoader;
 import me.zhuangjy.cache.strategy.Strategy;
 import me.zhuangjy.cache.strategy.StrategySelector;
-import org.apache.commons.collections.MapUtils;
 
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadFactory;
@@ -120,6 +121,16 @@ public class CacheLoader {
      */
     public String getDatabaseInfo(String dbName) {
         return Preconditions.checkNotNull(cacheDBInfoLoader.getCacheDBInfoView().get(dbName));
+    }
+
+    /**
+     * 根据缓存名获取实际缓存文件信息
+     *
+     * @param cacheName
+     * @return
+     */
+    public Optional<CacheFile> getCacheFile(String cacheName) {
+        return Optional.ofNullable(cacheDiskFileLoader.getCacheDiskFileView().get(cacheName));
     }
 
 }

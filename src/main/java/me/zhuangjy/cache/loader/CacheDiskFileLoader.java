@@ -21,39 +21,32 @@ public class CacheDiskFileLoader implements Loader {
 
     /**
      * 缓存目录文件信息
-     * <Dir,<CacheName,[RealFile,RealFile...]>>
+     * <CacheName,[RealFile,RealFile...]>
      * or cache 整文件缓存
-     * <Dir,<CacheName,[RealFile,RealFile...]>>
+     * <CacheName,[RealFile,RealFile...]>
      */
-    private Map<String, Map<String, CacheFile>> cacheDiskFileView = Collections.emptyMap();
+    private Map<String, CacheFile> cacheDiskFileView = Collections.emptyMap();
 
     /**
      * 加载磁盘文件缓存信息
      */
     @Override
     public void refreshView() throws Exception {
-        Map<String, Map<String, CacheFile>> map = new HashMap<>(16);
+        Map<String, CacheFile> map = new HashMap<>(16);
 
-        String[] dirs = ConfigUtil.getConfiguration().getString("cache.dirs").split(",");
-        for (String dir : dirs) {
-            for (File file : Objects.requireNonNull(new File(dir).listFiles())) {
-                if (!map.containsKey(dir)) {
-                    map.put(dir, new HashMap<>(16));
-                }
+        String dir = ConfigUtil.getConfiguration().getString("cache.dir");
+        for (File file : Objects.requireNonNull(new File(dir).listFiles())) {
+            String cacheName = file.getName();
+            map.put(cacheName, getCacheFile(file));
 
-                Map<String, CacheFile> cacheMap = map.get(dir);
-                String cacheName = file.getName();
-                cacheMap.put(cacheName, getCacheFile(file));
+            // 若包含列文件则使用列式存储
+            // 否则为整份文件存储
+            CacheFile cacheRoot = map.get(cacheName);
+            File cacheFile = new File(cacheRoot.getFilePath());
 
-                // 若包含列文件则使用列式存储
-                // 否则为整份文件存储
-                CacheFile cacheRoot = cacheMap.get(cacheName);
-                File cacheFile = new File(cacheRoot.getFilePath());
-
-                if (cacheFile.isDirectory()) {
-                    for (File columnFile : Objects.requireNonNull(cacheFile.listFiles())) {
-                        cacheRoot.getRealFiles().add(getCacheFile(columnFile));
-                    }
+            if (cacheFile.isDirectory()) {
+                for (File columnFile : Objects.requireNonNull(cacheFile.listFiles())) {
+                    cacheRoot.getRealFiles().add(getCacheFile(columnFile));
                 }
             }
         }
