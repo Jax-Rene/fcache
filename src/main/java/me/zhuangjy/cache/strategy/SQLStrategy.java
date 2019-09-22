@@ -9,10 +9,10 @@ import me.zhuangjy.util.DatabasePoolUtil;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.io.FileUtils;
 
-import java.io.File;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
+import java.util.stream.Collectors;
 
 
 /**
@@ -29,14 +29,19 @@ public class SQLStrategy implements Strategy {
         String cacheName = cacheInfo.getName();
         String database = cacheInfo.getDatabase();
         String sql = cacheInfo.getContent();
+
+        long now = System.currentTimeMillis();
+        log.info("starting to cache:{}", cacheName);
         String databaseInfo = CacheLoader.getInstance().getDatabaseInfo(database);
 
-        // 1. 执行SQL生成数据
-        // 2. 按列落地至临时目录
-        // 3. 比较fileSize & md5Sum 确定是否需要更新
+        // 1. 执行SQL生成数据缓存在内存中
+        // 2. 尝试更新文件
+        // 3. 若文件不存在直接写入
+        // 4. 否则更新文件
+        // 5. 更新缓存信息 (不需要,因为会定时刷新)
         List<Map<String, Object>> resultDatas = DatabasePoolUtil.getResult(DatabasePoolUtil.getDS(database, databaseInfo), sql);
         if (resultDatas.size() > 0) {
-            Set<String> columns = resultDatas.get(0).keySet();
+            Set<String> columns = resultDatas.get(0).keySet().stream().map(String::toLowerCase).collect(Collectors.toSet());
             Map<String, StringBuilder> fileContent = new HashMap<>(columns.size(), 1);
 
             for (String column : columns) {
@@ -50,35 +55,34 @@ public class SQLStrategy implements Strategy {
                 sb.deleteCharAt(sb.length() - 1);
             }
 
-            String tmpDir = ConfigUtil.getConfiguration().getString("tmp.dir");
-            Path path = Paths.get(tmpDir, cacheName);
-            File file = path.toFile();
-            if (!file.exists()) {
-                log.info("file:{} not exit. mkdirs success:{}", file.getName(), file.mkdirs());
-            }
-
+            // 更新文件
             Optional<CacheFile> cacheFile = CacheLoader.getInstance().getCacheFile(cacheName);
-            for (Map.Entry<String, StringBuilder> entry : fileContent.entrySet()) {
-                String column = entry.getKey();
-                path = Paths.get(tmpDir, cacheName, column);
-                file = path.toFile();
+            String cacheDir = ConfigUtil.getConfiguration().getString("cache.dir");
 
-                // 直接写入临时文件,然后和现有缓存文件做对比,有产生变化则更新
-                StringBuilder content = fileContent.get(column);
-                FileUtils.write(file, content);
-            }
-
-            // 目标文件不存在直接复制
-            // 文件存在则对比是否需要更新
             if (!cacheFile.isPresent()) {
-                String cacheDir = ConfigUtil.getConfiguration().getString("cache.dir");
-                Path srcDir = Paths.get(tmpDir, cacheName);
                 Path destDir = Paths.get(cacheDir, cacheName);
-                FileUtils.moveDirectory(srcDir.toFile(), destDir.toFile());
+                if (destDir.toFile().mkdirs()) {
+                    // 按列写入子目录
+                    for (Map.Entry<String, StringBuilder> entry : fileContent.entrySet()) {
+                        Path path = Paths.get(cacheDir, cacheName, entry.getKey());
+                        FileUtils.write(path.toFile(), entry.getValue());
+                    }
+                }
             } else {
+                // TODO 清理无效的列文件
+                for (Map.Entry<String, StringBuilder> entry : fileContent.entrySet()) {
+                    Path path = Paths.get(cacheDir, cacheName, entry.getKey());
+                    CacheFile cacheRoot = cacheFile.get();
 
+                    for (CacheFile file : cacheRoot.getRealFiles()) {
+                        // 查找更新文件
+                        if (file.getFilePath().equalsIgnoreCase(path.toString())) {
+                            file.update(entry.getValue().toString());
+                        }
+                    }
+                }
             }
-
+            log.info("cache:{} suc. cost:{}", cacheName, System.currentTimeMillis() - now);
         } else {
             log.warn("cache:{} get empty!", cacheName);
         }

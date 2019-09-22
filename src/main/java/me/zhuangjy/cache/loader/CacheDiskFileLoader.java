@@ -56,11 +56,7 @@ public class CacheDiskFileLoader implements Loader {
 
     private CacheFile getCacheFile(File file) throws IOException {
         try (InputStream inputStream = new FileInputStream(file.getAbsolutePath())) {
-            return CacheFile.builder()
-                    .filePath(file.getAbsolutePath())
-                    .fileSize(file.length())
-                    .md5Sum(DigestUtils.md5Hex(inputStream))
-                    .realFiles(new ArrayList<>()).build();
+            return new CacheFile(file.getAbsolutePath(),DigestUtils.md5Hex(inputStream));
         }
     }
 
