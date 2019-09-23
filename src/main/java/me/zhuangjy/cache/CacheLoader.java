@@ -13,6 +13,7 @@ import me.zhuangjy.cache.strategy.StrategySelector;
 
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadFactory;
@@ -103,6 +104,15 @@ public class CacheLoader {
         cacheExpiredView.put(cacheName, expiredTime);
     }
 
+    public void freshIfExpired(String cacheName) throws Exception {
+        if (cacheExpiredView.containsKey(cacheName)) {
+            int expiredTime = cacheExpiredView.get(cacheName);
+            if ((System.currentTimeMillis() / 1000) > expiredTime) {
+                freshCache(cacheName);
+            }
+        }
+    }
+
     /**
      * 根据Cache Name 获取对应Cache任务信息
      *
@@ -133,4 +143,12 @@ public class CacheLoader {
         return Optional.ofNullable(cacheDiskFileLoader.getCacheDiskFileView().get(cacheName));
     }
 
+    /**
+     * 获取所有缓存名称
+     *
+     * @return
+     */
+    public Set<String> getAllCacheName() {
+        return cacheViewLoader.getCacheView().keySet();
+    }
 }
