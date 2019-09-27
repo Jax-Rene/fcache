@@ -27,7 +27,7 @@ public class CacheViewLoader implements Loader {
      */
     @Override
     public void refreshView() throws Exception {
-        String sql = "SELECT name,type,content,ttl,database from fcache.cache_task";
+        String sql = "SELECT `name`,`type`,`content`,`ttl`,`database` from fcache.cache_task";
 
         Map<String, CacheInfo> tmp = new HashMap<>(cacheView.size());
         List<Map<String, Object>> list = DatabasePoolUtil.getResult(DatabasePoolUtil.getDS(), sql);

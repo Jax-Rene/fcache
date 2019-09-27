@@ -10,7 +10,10 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.*;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Objects;
 
 /**
  * @author zhuangjy
@@ -35,7 +38,13 @@ public class CacheDiskFileLoader implements Loader {
         Map<String, CacheFile> map = new HashMap<>(16);
 
         String dir = ConfigUtil.getConfiguration().getString("cache.dir");
-        for (File file : Objects.requireNonNull(new File(dir).listFiles())) {
+        File[] files = new File(dir).listFiles();
+        if (files == null) {
+            log.info("{} has nothing file.", dir);
+            return;
+        }
+
+        for (File file : files) {
             String cacheName = file.getName();
             map.put(cacheName, getCacheFile(file));
 
@@ -56,7 +65,7 @@ public class CacheDiskFileLoader implements Loader {
 
     private CacheFile getCacheFile(File file) throws IOException {
         try (InputStream inputStream = new FileInputStream(file.getAbsolutePath())) {
-            return new CacheFile(file.getAbsolutePath(),DigestUtils.md5Hex(inputStream));
+            return new CacheFile(file.getAbsolutePath(), DigestUtils.md5Hex(inputStream));
         }
     }
 

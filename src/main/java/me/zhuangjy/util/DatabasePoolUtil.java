@@ -35,6 +35,8 @@ public class DatabasePoolUtil {
         config.addDataSourceProperty("cachePrepStmts", "true");
         config.addDataSourceProperty("prepStmtCacheSize", "250");
         config.addDataSourceProperty("prepStmtCacheSqlLimit", "2048");
+        config.addDataSourceProperty("rewriteBatchedStatements", "true");
+        config.addDataSourceProperty("characterEncoding", "utf-8");
         return new HikariDataSource(config);
     }
 
@@ -42,7 +44,7 @@ public class DatabasePoolUtil {
         return getDS(ConstantUtil.DEFAULT_DS, null);
     }
 
-    public static HikariDataSource getDS(String name, String databaseInfo) {
+    public synchronized static HikariDataSource getDS(String name, String databaseInfo) {
         if (!dsMap.containsKey(name)) {
             JSONObject jsonObject = JSON.parseObject(databaseInfo);
             String url = jsonObject.getString(ConstantUtil.JDBC_URL);
@@ -95,5 +97,4 @@ public class DatabasePoolUtil {
         }
         return results;
     }
-
 }
