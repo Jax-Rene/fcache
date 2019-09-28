@@ -49,7 +49,7 @@ public class CacheFile {
             return false;
         }
 
-        // 获取写锁
+        // 更新操作期间获取写锁，保证和下载不冲突
         lock.writeLock().lock();
         try {
             long now = System.currentTimeMillis();
@@ -62,12 +62,4 @@ public class CacheFile {
         lock.writeLock().unlock();
         return true;
     }
-
-    /**
-     * 下载文件, 需要获取读锁, 保证下载文件完整性
-     */
-    public void download() {
-        // TODO
-    }
-
 }

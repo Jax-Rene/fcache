@@ -127,6 +127,16 @@ public class CacheLoader {
     }
 
     /**
+     * 判断是否存在对应Cache缓存
+     *
+     * @param cacheName
+     * @return
+     */
+    public boolean isCacheInfoExist(String cacheName) {
+        return cacheViewLoader.getCacheView().containsKey(cacheName);
+    }
+
+    /**
      * 获取数据库连接地址信息
      *
      * @param dbName 数据库名称

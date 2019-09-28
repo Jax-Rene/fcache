@@ -8,6 +8,9 @@ import io.netty.handler.ssl.SslHandler;
 import io.netty.handler.stream.ChunkedFile;
 import io.netty.util.CharsetUtil;
 import io.netty.util.internal.SystemPropertyUtil;
+import me.zhuangjy.bean.CacheFile;
+import me.zhuangjy.cache.CacheLoader;
+import org.apache.commons.collections.MapUtils;
 
 import javax.activation.MimetypesFileTypeMap;
 import java.io.File;
@@ -70,6 +73,16 @@ import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
  * Date:               Tue, 01 Mar 2011 22:44:28 GMT
  *
  * </pre>
+ * <p>
+ * 负责处理Http文件请求的Handler
+ *
+ * <h1>Http Cache机制</h1>
+ * 1. Cache-Control: max-age=X sec
+ * 设置客户端超时时间，客户端收到请求后，会记录该时间（now + max-age），若再次请求时时间早于该时间则不发起请求继续使用之前的缓存。
+ * 2. If-None-Match
+ * 客户端请求时会带上缓存的具体Md5值（可能细化到列的Md5值），Server检查若：
+ * （1）所有Md5都不变，返回304状态码，不返回任何数据
+ * （2）至少一个列Md5改变，返回200状态码，以及对应改变列的新数据
  */
 public class HttpStaticFileServerHandler extends SimpleChannelInboundHandler<FullHttpRequest> {
 
@@ -92,8 +105,28 @@ public class HttpStaticFileServerHandler extends SimpleChannelInboundHandler<Ful
             return;
         }
 
-        final boolean keepAlive = HttpUtil.isKeepAlive(request);
-        final String uri = request.uri();
+        // 判断缓存是否存在
+        String uri = request.uri().replaceAll("/", "");
+        Optional<CacheFile> cacheFileOpt = CacheLoader.getInstance().getCacheFile(uri);
+
+        if (!cacheFileOpt.isPresent()) {
+            this.sendError(ctx, NOT_FOUND);
+            return;
+        }
+
+        // 获取Etag信息
+        QueryStringDecoder decoder = new QueryStringDecoder(request.uri());
+        Map<String, String> paramMap = new HashMap<>();
+        decoder.parameters().forEach((key, value) -> paramMap.put(key, value.get(0)));
+        if (MapUtils.isEmpty(paramMap)) {
+            this.sendError(ctx, FORBIDDEN);
+            return;
+        }
+
+
+
+        CacheFile cacheFile = cacheFileOpt.get();
+
         final String path = sanitizeUri(uri);
         if (path == null) {
             this.sendError(ctx, FORBIDDEN);
@@ -106,6 +139,7 @@ public class HttpStaticFileServerHandler extends SimpleChannelInboundHandler<Ful
             return;
         }
 
+        final boolean keepAlive = HttpUtil.isKeepAlive(request);
         if (file.isDirectory()) {
             if (uri.endsWith("/")) {
                 this.sendListing(ctx, file, uri);
