@@ -17,7 +17,7 @@ public class Bootstrap {
     public static void main(String[] args) throws Exception {
 
         long ts = StopWatchUtil.start("Loading expired now.");
-        loadAllCaches();
+        CacheLoader.getInstance().freshAllExpired();
         StopWatchUtil.end(ts, "Loaded suc.");
 
         EventLoopGroup bossGroup = new NioEventLoopGroup(1);
@@ -37,20 +37,4 @@ public class Bootstrap {
             workerGroup.shutdownGracefully();
         }
     }
-
-    /**
-     * 第一次启动加载所有过期缓存
-     */
-    private static void loadAllCaches() {
-        CacheLoader cacheLoader = CacheLoader.getInstance();
-        for (String name : cacheLoader.getAllCacheName()) {
-            try {
-                cacheLoader.freshIfExpired(name);
-            } catch (Exception e) {
-                log.error(e.getMessage(), e);
-            }
-        }
-    }
-
-
 }

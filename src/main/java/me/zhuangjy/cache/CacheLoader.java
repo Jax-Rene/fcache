@@ -10,6 +10,7 @@ import me.zhuangjy.cache.loader.CacheDiskFileLoader;
 import me.zhuangjy.cache.loader.CacheViewLoader;
 import me.zhuangjy.cache.strategy.Strategy;
 import me.zhuangjy.cache.strategy.StrategySelector;
+import org.apache.commons.collections.MapUtils;
 
 import java.util.Map;
 import java.util.Optional;
@@ -58,7 +59,6 @@ public class CacheLoader {
     private void init() {
         try {
             refresh();
-
             ThreadFactory factory = new ThreadFactoryBuilder().setNameFormat("fresh-task-%d").build();
             ScheduledThreadPoolExecutor poolExecutor = new ScheduledThreadPoolExecutor(1, factory);
             poolExecutor.scheduleAtFixedRate(() -> {
@@ -81,6 +81,7 @@ public class CacheLoader {
         cacheViewLoader.refreshView();
         cacheDBInfoLoader.refreshView();
         cacheDiskFileLoader.refreshView();
+        freshAllExpired();
     }
 
 
@@ -104,13 +105,15 @@ public class CacheLoader {
         cacheExpiredView.put(cacheName, expiredTime);
     }
 
-    public void freshIfExpired(String cacheName) throws Exception {
-        if (cacheExpiredView.containsKey(cacheName)) {
-            int expiredTime = cacheExpiredView.get(cacheName);
-            if ((System.currentTimeMillis() / 1000) > expiredTime) {
-                freshCache(cacheName);
-            }
-        }
+    /**
+     * 刷新所有过期缓存，若缓存不存在直接刷新
+     * 提交刷新任务到线程池进行异步刷新
+     */
+    public void freshAllExpired() {
+        getAllCacheName()
+                .stream()
+                .filter(name -> System.currentTimeMillis() / 1000 > MapUtils.getIntValue(cacheExpiredView, name, 0))
+                .forEach(FreshTaskPool::submit);
     }
 
     /**

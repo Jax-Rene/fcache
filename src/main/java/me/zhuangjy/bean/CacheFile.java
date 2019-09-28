@@ -18,8 +18,11 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 @Data
 public class CacheFile {
 
-    private String filePath;
+    /**
+     * 文件md5Sum存储对应内容md5,目录则使用所有子文件md5sum拼接结果
+     **/
     private String md5Sum;
+    private String filePath;
     private List<CacheFile> realFiles;
     private ReentrantReadWriteLock lock;
 
@@ -42,7 +45,7 @@ public class CacheFile {
     public boolean update(String content) {
         String newMd5Sum = DigestUtils.md5Hex(content);
         if (newMd5Sum.equalsIgnoreCase(md5Sum)) {
-            log.info("update {},but cache not modified.nothing change.",filePath);
+            log.info("update {},but cache not modified.nothing change.", filePath);
             return false;
         }
 
@@ -51,10 +54,10 @@ public class CacheFile {
         try {
             long now = System.currentTimeMillis();
             this.md5Sum = newMd5Sum;
-            FileUtils.write(new File(filePath),content);
-            log.info("update:{} suc! cost:{} ms" ,filePath,System.currentTimeMillis() - now);
+            FileUtils.write(new File(filePath), content);
+            log.info("update:{} suc! cost:{} ms", filePath, System.currentTimeMillis() - now);
         } catch (IOException e) {
-            log.error(e.getMessage(),e);
+            log.error(e.getMessage(), e);
         }
         lock.writeLock().unlock();
         return true;

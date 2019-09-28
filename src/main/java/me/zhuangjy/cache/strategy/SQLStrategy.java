@@ -78,6 +78,7 @@ public class SQLStrategy implements Strategy {
                         // 查找更新文件
                         if (file.getFilePath().equalsIgnoreCase(path.toString())) {
                             file.update(entry.getValue().toString());
+                            break;
                         }
                     }
                 }

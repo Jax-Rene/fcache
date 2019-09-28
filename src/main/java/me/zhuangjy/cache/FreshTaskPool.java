@@ -37,11 +37,12 @@ public class FreshTaskPool {
      * @return true:提交成功 false:提交失败
      */
     public static synchronized boolean submit(String cacheName) {
-        if (onDoingTasks.contains(cacheName)) {
+        if (onDoingTasks.add(cacheName)) {
+            pool.submit(new FreshTask(cacheName));
+            return true;
+        } else {
             return false;
         }
-        pool.submit(new FreshTask(cacheName));
-        return true;
     }
 
 

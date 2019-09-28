@@ -3,6 +3,7 @@ package me.zhuangjy.bean;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.apache.commons.collections.MapUtils;
 
 import java.util.Map;
 
@@ -27,7 +28,7 @@ public class CacheInfo {
         String name = (String) map.get("name");
         String type = (String) map.get("type");
         String content = (String) map.get("content");
-        int ttl = (int) map.get("ttl");
+        int ttl = MapUtils.getIntValue(map, "ttl", 60);
         String database = (String) map.get("database");
         return new CacheInfo(name, type, content, ttl, database);
     }

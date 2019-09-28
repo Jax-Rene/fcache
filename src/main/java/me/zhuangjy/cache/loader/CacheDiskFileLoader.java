@@ -46,6 +46,7 @@ public class CacheDiskFileLoader implements Loader {
 
         for (File file : files) {
             String cacheName = file.getName();
+            boolean isDir = file.isDirectory();
             map.put(cacheName, getCacheFile(file));
 
             // 若包含列文件则使用列式存储
@@ -53,19 +54,34 @@ public class CacheDiskFileLoader implements Loader {
             CacheFile cacheRoot = map.get(cacheName);
             File cacheFile = new File(cacheRoot.getFilePath());
 
-            if (cacheFile.isDirectory()) {
+            if (isDir) {
+                StringBuilder parentMd5Sum = new StringBuilder();
                 for (File columnFile : Objects.requireNonNull(cacheFile.listFiles())) {
-                    cacheRoot.getRealFiles().add(getCacheFile(columnFile));
+                    CacheFile innerFile = getCacheFile(columnFile);
+                    parentMd5Sum.append(innerFile.getMd5Sum());
+                    cacheRoot.getRealFiles().add(innerFile);
                 }
+                cacheRoot.setMd5Sum(DigestUtils.md5Hex(parentMd5Sum.toString()));
             }
         }
 
         cacheDiskFileView = map;
     }
 
+    /**
+     * 获取 CacheFile 对象，若是目录暂时无记录MD5Sum
+     *
+     * @param file
+     * @return
+     * @throws IOException
+     */
     private CacheFile getCacheFile(File file) throws IOException {
-        try (InputStream inputStream = new FileInputStream(file.getAbsolutePath())) {
-            return new CacheFile(file.getAbsolutePath(), DigestUtils.md5Hex(inputStream));
+        if (file.isDirectory()) {
+            return new CacheFile(file.getAbsolutePath(), null);
+        } else {
+            try (InputStream inputStream = new FileInputStream(file.getAbsolutePath())) {
+                return new CacheFile(file.getAbsolutePath(), DigestUtils.md5Hex(inputStream));
+            }
         }
     }
 
