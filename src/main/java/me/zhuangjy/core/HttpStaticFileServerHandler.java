@@ -4,15 +4,13 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.*;
 import io.netty.handler.codec.http.*;
-import io.netty.handler.ssl.SslHandler;
-import io.netty.handler.stream.ChunkedFile;
 import io.netty.util.CharsetUtil;
 import io.netty.util.internal.SystemPropertyUtil;
 import me.zhuangjy.bean.CacheFile;
 import me.zhuangjy.cache.CacheLoader;
+import me.zhuangjy.util.ConstantUtil;
 import org.apache.commons.collections.MapUtils;
 
-import javax.activation.MimetypesFileTypeMap;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.RandomAccessFile;
@@ -20,6 +18,7 @@ import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.regex.Pattern;
 
 import static io.netty.handler.codec.http.HttpMethod.GET;
@@ -123,112 +122,62 @@ public class HttpStaticFileServerHandler extends SimpleChannelInboundHandler<Ful
             return;
         }
 
-
-
         CacheFile cacheFile = cacheFileOpt.get();
-
-        final String path = sanitizeUri(uri);
-        if (path == null) {
-            this.sendError(ctx, FORBIDDEN);
-            return;
+        String clientMd5 = MapUtils.getString(paramMap, ConstantUtil.ALL);
+        String serverMd5 = cacheFile.getMd5Sum();
+        if (clientMd5.equalsIgnoreCase(serverMd5)) {
+            this.sendNotModified(ctx);
         }
 
-        File file = new File(path);
-        if (file.isHidden() || !file.exists()) {
-            this.sendError(ctx, NOT_FOUND);
-            return;
-        }
-
-        final boolean keepAlive = HttpUtil.isKeepAlive(request);
-        if (file.isDirectory()) {
-            if (uri.endsWith("/")) {
-                this.sendListing(ctx, file, uri);
+        // 请求参数只有1个, 需要访问整份缓存
+        if (paramMap.size() == 1 && paramMap.containsKey(ConstantUtil.ALL)) {
+            File file = new File(cacheFile.getFilePath());
+            if (file.isDirectory()) {
+                // 是目录遍历下载所有列
+                for (CacheFile f : cacheFile.getRealFiles()) {
+                    ReentrantReadWriteLock.ReadLock readLock = f.getLock().readLock();
+                    readLock.lock();
+                    readLock.unlock();
+                }
             } else {
-                this.sendRedirect(ctx, uri + '/');
-            }
-            return;
-        }
+                // 不是目录,直接下载文件
+                ReentrantReadWriteLock.ReadLock readLock = cacheFile.getLock().readLock();
+                try (RandomAccessFile raf = new RandomAccessFile(new File(cacheFile.getFilePath()), "r")) {
+                    long fileLength = raf.length();
+                    HttpResponse response = new DefaultHttpResponse(HTTP_1_1, OK);
+                    HttpUtil.setContentLength(response, fileLength);
+                    ctx.write(response);
 
-        if (!file.isFile()) {
-            sendError(ctx, FORBIDDEN);
-            return;
-        }
+                    // Write the content.
+                    ChannelFuture sendFileFuture = ctx.write(new DefaultFileRegion(raf.getChannel(), 0, fileLength), ctx.newProgressivePromise());
+                    // Write the end marker.
+                    ctx.writeAndFlush(LastHttpContent.EMPTY_LAST_CONTENT);
 
-        // Cache Validation
-        String ifModifiedSince = request.headers().get(HttpHeaderNames.IF_MODIFIED_SINCE);
-        if (ifModifiedSince != null && !ifModifiedSince.isEmpty()) {
-            SimpleDateFormat dateFormatter = new SimpleDateFormat(HTTP_DATE_FORMAT, Locale.US);
-            Date ifModifiedSinceDate = dateFormatter.parse(ifModifiedSince);
+                    sendFileFuture.addListener(new ChannelProgressiveFutureListener() {
+                        @Override
+                        public void operationProgressed(ChannelProgressiveFuture future, long progress, long total) {
+                            if (total < 0) { // total unknown
 
-            // Only compare up to the second because the datetime format we send to the client
-            // does not have milliseconds
-            long ifModifiedSinceDateSeconds = ifModifiedSinceDate.getTime() / 1000;
-            long fileLastModifiedSeconds = file.lastModified() / 1000;
-            if (ifModifiedSinceDateSeconds == fileLastModifiedSeconds) {
-                this.sendNotModified(ctx);
-                return;
-            }
-        }
+                                System.err.println(future.channel() + " Transfer progress: " + progress);
+                            } else {
+                                System.err.println(future.channel() + " Transfer progress: " + progress + " / " + total);
+                            }
+                        }
 
-        RandomAccessFile raf;
-        try {
-            raf = new RandomAccessFile(file, "r");
-        } catch (FileNotFoundException ignore) {
-            sendError(ctx, NOT_FOUND);
-            return;
-        }
-        long fileLength = raf.length();
-
-        HttpResponse response = new DefaultHttpResponse(HTTP_1_1, OK);
-        HttpUtil.setContentLength(response, fileLength);
-        setContentTypeHeader(response, file);
-        setDateAndCacheHeaders(response, file);
-
-        if (!keepAlive) {
-            response.headers().set(HttpHeaderNames.CONNECTION, HttpHeaderValues.CLOSE);
-        } else if (request.protocolVersion().equals(HTTP_1_0)) {
-            response.headers().set(HttpHeaderNames.CONNECTION, HttpHeaderValues.KEEP_ALIVE);
-        }
-
-        // Write the initial line and the header.
-        ctx.write(response);
-
-        // Write the content.
-        ChannelFuture sendFileFuture;
-        ChannelFuture lastContentFuture;
-        if (ctx.pipeline().get(SslHandler.class) == null) {
-            sendFileFuture =
-                    ctx.write(new DefaultFileRegion(raf.getChannel(), 0, fileLength), ctx.newProgressivePromise());
-            // Write the end marker.
-            lastContentFuture = ctx.writeAndFlush(LastHttpContent.EMPTY_LAST_CONTENT);
-        } else {
-            sendFileFuture =
-                    ctx.writeAndFlush(new HttpChunkedInput(new ChunkedFile(raf, 0, fileLength, 8192)),
-                            ctx.newProgressivePromise());
-            // HttpChunkedInput will write the end marker (LastHttpContent) for us.
-            lastContentFuture = sendFileFuture;
-        }
-
-        sendFileFuture.addListener(new ChannelProgressiveFutureListener() {
-            @Override
-            public void operationProgressed(ChannelProgressiveFuture future, long progress, long total) {
-                if (total < 0) { // total unknown
-                    System.err.println(future.channel() + " Transfer progress: " + progress);
-                } else {
-                    System.err.println(future.channel() + " Transfer progress: " + progress + " / " + total);
+                        @Override
+                        public void operationComplete(ChannelProgressiveFuture future) {
+                            System.err.println(future.channel() + " Transfer complete.");
+                        }
+                    });
+                } catch (FileNotFoundException e) {
+                    sendError(ctx, NOT_FOUND);
+                    return;
+                } finally {
+                    readLock.unlock();
                 }
             }
+        } else {
 
-            @Override
-            public void operationComplete(ChannelProgressiveFuture future) {
-                System.err.println(future.channel() + " Transfer complete.");
-            }
-        });
-
-        // Decide whether to close the connection or not.
-        if (!keepAlive) {
-            // Close the connection when the whole content is written out.
-            lastContentFuture.addListener(ChannelFutureListener.CLOSE);
         }
     }
 
@@ -331,7 +280,7 @@ public class HttpStaticFileServerHandler extends SimpleChannelInboundHandler<Ful
     }
 
     /**
-     * When file timestamp is the same as what the browser is sending up, send a "304 Not Modified"
+     * Etag 无修改则返回 "304 Not Modified"
      *
      * @param ctx Context
      */
@@ -379,36 +328,4 @@ public class HttpStaticFileServerHandler extends SimpleChannelInboundHandler<Ful
         response.headers().set(HttpHeaderNames.DATE, dateFormatter.format(time.getTime()));
     }
 
-    /**
-     * Sets the Date and Cache headers for the HTTP Response
-     *
-     * @param response    HTTP response
-     * @param fileToCache file to extract content type
-     */
-    private static void setDateAndCacheHeaders(HttpResponse response, File fileToCache) {
-        SimpleDateFormat dateFormatter = new SimpleDateFormat(HTTP_DATE_FORMAT, Locale.US);
-        dateFormatter.setTimeZone(TimeZone.getTimeZone(HTTP_DATE_GMT_TIMEZONE));
-
-        // Date header
-        Calendar time = new GregorianCalendar();
-        response.headers().set(HttpHeaderNames.DATE, dateFormatter.format(time.getTime()));
-
-        // Add cache headers
-        time.add(Calendar.SECOND, HTTP_CACHE_SECONDS);
-        response.headers().set(HttpHeaderNames.EXPIRES, dateFormatter.format(time.getTime()));
-        response.headers().set(HttpHeaderNames.CACHE_CONTROL, "private, max-age=" + HTTP_CACHE_SECONDS);
-        response.headers().set(
-                HttpHeaderNames.LAST_MODIFIED, dateFormatter.format(new Date(fileToCache.lastModified())));
-    }
-
-    /**
-     * Sets the content type header for the HTTP Response
-     *
-     * @param response HTTP response
-     * @param file     file to extract content type
-     */
-    private static void setContentTypeHeader(HttpResponse response, File file) {
-        MimetypesFileTypeMap mimeTypesMap = new MimetypesFileTypeMap();
-        response.headers().set(HttpHeaderNames.CONTENT_TYPE, mimeTypesMap.getContentType(file.getPath()));
-    }
 }
