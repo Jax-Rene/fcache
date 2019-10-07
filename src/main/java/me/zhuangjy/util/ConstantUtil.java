@@ -16,9 +16,4 @@ public interface ConstantUtil {
      */
     String SQL_STRATEGY = "sql";
 
-    /**
-     * Cache Param
-     */
-    String ALL = "all";
-
 }
