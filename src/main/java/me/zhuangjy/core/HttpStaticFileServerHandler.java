@@ -13,10 +13,12 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.RandomAccessFile;
 import java.nio.file.Paths;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.stream.Collectors;
 
 import static io.netty.handler.codec.http.HttpMethod.GET;
 import static io.netty.handler.codec.http.HttpResponseStatus.*;
@@ -100,19 +102,25 @@ public class HttpStaticFileServerHandler extends SimpleChannelInboundHandler<Ful
         }
 
         // 判断缓存是否存在
-        String uri = request.uri().replaceAll("/", "").toLowerCase();
-        Optional<CacheFile> cacheFileOpt = CacheLoader.getInstance().getCacheFile(uri);
+        String cacheName = request.uri().replaceAll("/", "").toLowerCase();
+        if (cacheName.contains("?")) {
+            cacheName = cacheName.substring(0, cacheName.indexOf('?'));
+        }
+        Optional<CacheFile> cacheFileOpt = CacheLoader.getInstance().getCacheFile(cacheName);
 
         if (!cacheFileOpt.isPresent()) {
-            this.sendMessage(ctx, NOT_FOUND, "no found message: " + uri);
+            this.sendMessage(ctx, NOT_FOUND, "no found message: " + cacheName);
             return;
         }
 
         // TODO 单独一份数据（非列存储）支持
         // 获取Etag信息
-        QueryStringDecoder decoder = new QueryStringDecoder(request.uri());
-        Map<String, String> paramMap = new HashMap<>(16);
-        decoder.parameters().forEach((key, value) -> paramMap.put(key.toLowerCase(), value.get(0)));
+        Map<String, String> paramMap = Arrays.stream(request.headers()
+                .get(HttpHeaderNames.IF_NONE_MATCH, "")
+                .split("&"))
+                .map(m -> m.split("="))
+                .collect(Collectors.toMap(m -> m[0], m -> m.length > 1 ? m[1] : ""));
+
         if (MapUtils.isEmpty(paramMap)) {
             this.sendMessage(ctx, BAD_REQUEST, "no target column set!");
             return;
@@ -130,7 +138,7 @@ public class HttpStaticFileServerHandler extends SimpleChannelInboundHandler<Ful
             String column = entry.getKey();
             String md5 = entry.getValue();
             if (!columnMap.containsKey(column)) {
-                String msg = "no found column: " + column + " of uri:" + uri;
+                String msg = "no found column: " + column + " of cache:" + cacheName;
                 this.sendMessage(ctx, NOT_FOUND, msg);
                 return;
             }
@@ -158,13 +166,15 @@ public class HttpStaticFileServerHandler extends SimpleChannelInboundHandler<Ful
         }
         response.headers()
                 .set(HttpHeaderNames.ACCESS_CONTROL_MAX_AGE, HTTP_CACHE_SECONDS)
-                .set(HttpHeaderNames.ETAG, sb.toString());
+                .set(HttpHeaderNames.ETAG, sb.toString())
+                .set(HttpHeaderNames.CONTENT_TYPE, "text/plain");
         ctx.write(response);
 
         for (String col : remainColMap.keySet()) {
             String startMark = "---###" + col;
             CacheFile colFile = columnMap.get(col);
             ReentrantReadWriteLock.ReadLock readLock = colFile.getLock().readLock();
+            readLock.lock();
 
             try (RandomAccessFile raf = new RandomAccessFile(new File(colFile.getFilePath()), "r")) {
                 long fileLength = raf.length();
@@ -182,7 +192,7 @@ public class HttpStaticFileServerHandler extends SimpleChannelInboundHandler<Ful
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-        cause.printStackTrace();
+        log.error(cause.getMessage(), cause);
         if (ctx.channel().isActive()) {
             sendMessage(ctx, INTERNAL_SERVER_ERROR, cause.getMessage());
         }
