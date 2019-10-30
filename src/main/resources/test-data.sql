@@ -1,0 +1,2 @@
+INSERT INTO `cache_task` (`name`, `type`, `content`, `ttl`, `database`) VALUES ('user', 'sql', 'SELECT name,age,score from mydata.`user`', '60', 'mydb');
+INSERT INTO `source_db_info` (`name`, `db_info`) VALUES ('mydb', '{\n    \"jdbc.mysql.url\" : \"jdbc:mysql://127.0.0.1:3306/mydata\",\n    \"jdbc.mysql.username\" : \"root\",\n    \"jdbc.mysql.password\" : \"123456\"\n}');
