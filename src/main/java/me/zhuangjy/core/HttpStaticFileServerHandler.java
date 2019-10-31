@@ -4,19 +4,19 @@ import io.netty.buffer.Unpooled;
 import io.netty.channel.*;
 import io.netty.handler.codec.http.*;
 import io.netty.util.CharsetUtil;
+import io.netty.util.concurrent.Future;
+import io.netty.util.concurrent.GenericFutureListener;
 import lombok.extern.slf4j.Slf4j;
 import me.zhuangjy.bean.CacheFile;
 import me.zhuangjy.cache.CacheLoader;
+import me.zhuangjy.util.StopWatchUtil;
 import org.apache.commons.collections.MapUtils;
+import org.apache.commons.lang3.tuple.Triple;
 
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.RandomAccessFile;
 import java.nio.file.Paths;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Collectors;
 
@@ -90,6 +90,7 @@ public class HttpStaticFileServerHandler extends SimpleChannelInboundHandler<Ful
 
     @Override
     public void channelRead0(ChannelHandlerContext ctx, FullHttpRequest request) throws Exception {
+        long startTime = StopWatchUtil.start();
         this.request = request;
         if (!request.decoderResult().isSuccess()) {
             sendMessage(ctx, BAD_REQUEST, "decode faild!");
@@ -154,8 +155,24 @@ public class HttpStaticFileServerHandler extends SimpleChannelInboundHandler<Ful
             return;
         }
 
-        // 返回修改过后的列
+        // write contents
+        long contentLen = 0L;
+        List<Triple<String, ReentrantReadWriteLock.ReadLock,RandomAccessFile>> triples = new ArrayList<>();
+        for (String col : remainColMap.keySet()) {
+            String startMark = "---###" + col;
+            CacheFile colFile = columnMap.get(col);
+            // 操作过程要上锁,防止有缓存更新
+            ReentrantReadWriteLock.ReadLock readLock = colFile.getLock().readLock();
+            readLock.lock();
+
+            RandomAccessFile raf = new RandomAccessFile(new File(colFile.getFilePath()), "r");
+            contentLen += raf.length();
+            triples.add(Triple.of(startMark, readLock, raf));
+        }
+
         HttpResponse response = new DefaultHttpResponse(HTTP_1_1, OK);
+        HttpUtil.setContentLength(response, contentLen);
+
         StringBuilder sb = new StringBuilder();
         for (String col : remainColMap.keySet()) {
             CacheFile colFile = columnMap.get(col);
@@ -170,24 +187,31 @@ public class HttpStaticFileServerHandler extends SimpleChannelInboundHandler<Ful
                 .set(HttpHeaderNames.CONTENT_TYPE, "text/plain");
         ctx.write(response);
 
-        for (String col : remainColMap.keySet()) {
-            String startMark = "---###" + col;
-            CacheFile colFile = columnMap.get(col);
-            ReentrantReadWriteLock.ReadLock readLock = colFile.getLock().readLock();
-            readLock.lock();
+        for (Triple<String, ReentrantReadWriteLock.ReadLock, RandomAccessFile> triple : triples) {
+            ReentrantReadWriteLock.ReadLock readLock = triple.getMiddle();
 
-            try (RandomAccessFile raf = new RandomAccessFile(new File(colFile.getFilePath()), "r")) {
-                long fileLength = raf.length();
-                ctx.write(startMark);
-                ctx.write(new DefaultFileRegion(raf.getChannel(), 0, fileLength));
-            } catch (FileNotFoundException e) {
-                sendMessage(ctx, NOT_FOUND, e.getMessage());
-                return;
+            try {
+                RandomAccessFile raf = triple.getRight();
+                ctx.write(new DefaultFileRegion(raf.getChannel(), 0, raf.length()));
+            } catch (Exception e) {
+                log.error(e.getMessage(), e);
+                sendMessage(ctx, INTERNAL_SERVER_ERROR, "Unknow Exception: " + e.getMessage());
             } finally {
-                readLock.unlock();
+                if (readLock != null) {
+                    readLock.unlock();
+                }
             }
         }
-        ctx.writeAndFlush(LastHttpContent.EMPTY_LAST_CONTENT);
+
+        ChannelFuture future = ctx.writeAndFlush(LastHttpContent.EMPTY_LAST_CONTENT);
+        future.addListener(future1 -> {
+            for (Triple<String, ReentrantReadWriteLock.ReadLock, RandomAccessFile> triple : triples) {
+                if (triple.getRight() != null) {
+                    triple.getRight().close();
+                }
+            }
+            StopWatchUtil.end(startTime, "Make a response suc for uri " + request.uri());
+        });
     }
 
     @Override

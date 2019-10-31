@@ -45,14 +45,13 @@ public class SQLStrategy implements Strategy {
             Map<String, StringBuilder> fileContent = new HashMap<>(columns.size(), 1);
 
             for (String column : columns) {
-                StringBuilder sb = new StringBuilder();
+                StringBuilder sb = new StringBuilder("---###" + column + "###---\n");
                 fileContent.put(column, sb);
 
                 for (Map<String, Object> data : resultDatas) {
                     sb.append(MapUtils.getString(data, column, ""))
                             .append("\n");
                 }
-                sb.deleteCharAt(sb.length() - 1);
             }
 
             // 更新文件

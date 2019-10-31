@@ -6,8 +6,14 @@ import lombok.extern.slf4j.Slf4j;
 public class StopWatchUtil {
 
     public static long start(String msg) {
-        log.info(msg);
+        if (msg != null)  {
+                log.info(msg);
+        }
         return System.currentTimeMillis();
+    }
+
+    public static long start() {
+        return start(null);
     }
 
     public static void end(long startTime, String msg) {
