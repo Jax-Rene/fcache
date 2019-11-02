@@ -27,60 +27,21 @@ import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 
 
 /**
- * A simple handler that serves incoming HTTP requests to send their respective
- * HTTP responses.  It also implements {@code 'If-Modified-Since'} header to
- * take advantage of browser cache, as described in
- * <a href="http://tools.ietf.org/html/rfc2616#section-14.25">RFC 2616</a>.
+ * A Netty File Download Server
  *
- * <h3>How Browser Caching Works</h3>
- * <p>
- * Web browser caching works with HTTP headers as illustrated by the following
- * sample:
- * <ol>
- * <li>Request #1 returns the content of {@code /file1.txt}.</li>
- * <li>Contents of {@code /file1.txt} is cached by the browser.</li>
- * <li>Request #2 for {@code /file1.txt} does not return the contents of the
- * file again. Rather, a 304 Not Modified is returned. This tells the
- * browser to use the contents stored in its cache.</li>
- * <li>The server knows the file has not been modified because the
- * {@code If-Modified-Since} date is the same as the file's last
- * modified date.</li>
- * </ol>
- *
- * <pre>
- * Request #1 Headers
- * ===================
- * GET /file1.txt HTTP/1.1
- *
- * Response #1 Headers
- * ===================
- * HTTP/1.1 200 OK
- * Date:               Tue, 01 Mar 2011 22:44:26 GMT
- * Last-Modified:      Wed, 30 Jun 2010 21:36:48 GMT
- * Expires:            Tue, 01 Mar 2012 22:44:26 GMT
- * Cache-Control:      private, max-age=31536000
- *
- * Request #2 Headers
- * ===================
- * GET /file1.txt HTTP/1.1
- * If-Modified-Since:  Wed, 30 Jun 2010 21:36:48 GMT
- *
- * Response #2 Headers
- * ===================
- * HTTP/1.1 304 Not Modified
- * Date:               Tue, 01 Mar 2011 22:44:28 GMT
- *
- * </pre>
- * <p>
- * 负责处理Http文件请求的Handler
- *
- * <h1>Http Cache机制</h1>
- * 1. Cache-Control: max-age=X sec
+ * <h1>Http Cache 机制</h1>
+ * 1. Response Cache-Control: max-age=X sec
  * 设置客户端超时时间，客户端收到请求后，会记录该时间（now + max-age），若再次请求时时间早于该时间则不发起请求继续使用之前的缓存。
  * 2. If-None-Match
- * 客户端请求时会带上缓存的具体Md5值（可能细化到列的Md5值），Server检查若：
- * （1）所有Md5都不变，返回304状态码，不返回任何数据
- * （2）至少一个列Md5改变，返回200状态码，以及对应改变列的新数据
+ * 客户端请求时Header会带上缓存的具体Md5值，Server检查若：
+ *  （1）所有Md5都不变，返回304状态码，不返回任何数据
+ *  （2）至少一个列Md5改变，返回200状态码，以及对应改变列的新数据
+ *
+ * <h2>Zero Copy</h2>
+ * 使用Netty零拷贝技术实现文件流式下载
+ *
+ * <h3>短连接&长连接支持</h3>
+ * 对于短连接下载后直接关闭连接
  */
 @Slf4j
 public class HttpStaticFileServerHandler extends SimpleChannelInboundHandler<FullHttpRequest> {
@@ -170,6 +131,7 @@ public class HttpStaticFileServerHandler extends SimpleChannelInboundHandler<Ful
             triples.add(Triple.of(startMark, readLock, raf));
         }
 
+        boolean keepAlive = HttpUtil.isKeepAlive(request);
         HttpResponse response = new DefaultHttpResponse(HTTP_1_1, OK);
         HttpUtil.setContentLength(response, contentLen);
 
@@ -185,6 +147,13 @@ public class HttpStaticFileServerHandler extends SimpleChannelInboundHandler<Ful
                 .set(HttpHeaderNames.ACCESS_CONTROL_MAX_AGE, HTTP_CACHE_SECONDS)
                 .set(HttpHeaderNames.ETAG, sb.toString())
                 .set(HttpHeaderNames.CONTENT_TYPE, "text/plain");
+
+        if (!keepAlive) {
+            response.headers().set(HttpHeaderNames.CONNECTION, HttpHeaderValues.CLOSE);
+        } else if (request.protocolVersion().equals(HTTP_1_0)) {
+            response.headers().set(HttpHeaderNames.CONNECTION, HttpHeaderValues.KEEP_ALIVE);
+        }
+
         ctx.write(response);
 
         for (Triple<String, ReentrantReadWriteLock.ReadLock, RandomAccessFile> triple : triples) {
@@ -204,14 +173,19 @@ public class HttpStaticFileServerHandler extends SimpleChannelInboundHandler<Ful
         }
 
         ChannelFuture future = ctx.writeAndFlush(LastHttpContent.EMPTY_LAST_CONTENT);
-        future.addListener(future1 -> {
+        GenericFutureListener<? extends Future<? super Void>> completeListen = f -> {
             for (Triple<String, ReentrantReadWriteLock.ReadLock, RandomAccessFile> triple : triples) {
                 if (triple.getRight() != null) {
                     triple.getRight().close();
                 }
             }
             StopWatchUtil.end(startTime, "Make a response suc for uri " + request.uri());
-        });
+        };
+
+        future.addListener(completeListen);
+        if (!keepAlive) {
+            future.addListener(ChannelFutureListener.CLOSE);
+        }
     }
 
     @Override
