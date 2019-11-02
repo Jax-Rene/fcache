@@ -26,7 +26,7 @@ public class SQLStrategy implements Strategy {
 
     @Override
     public void fresh(CacheInfo cacheInfo) throws Exception {
-        String cacheName = cacheInfo.getName();
+        String cacheName = cacheInfo.getName().toLowerCase();
         String database = cacheInfo.getDatabase();
         String sql = cacheInfo.getContent();
 

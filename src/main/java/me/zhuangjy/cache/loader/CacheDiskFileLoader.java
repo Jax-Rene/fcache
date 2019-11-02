@@ -45,7 +45,7 @@ public class CacheDiskFileLoader implements Loader {
         }
 
         for (File file : files) {
-            String cacheName = file.getName();
+            String cacheName = file.getName().toLowerCase();
             boolean isDir = file.isDirectory();
             map.put(cacheName, getCacheFile(file));
 

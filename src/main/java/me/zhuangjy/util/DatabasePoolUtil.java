@@ -5,6 +5,7 @@ import com.alibaba.fastjson.JSONObject;
 import com.google.common.base.Preconditions;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
+import org.apache.commons.collections.map.CaseInsensitiveMap;
 
 import java.sql.*;
 import java.util.*;
@@ -88,7 +89,7 @@ public class DatabasePoolUtil {
         }
 
         while (rs.next()) {
-            Map<String, Object> map = new HashMap<>(16);
+            Map<String, Object> map = new CaseInsensitiveMap();
             for (String key : colNameList) {
                 Object value = rs.getString(key);
                 map.put(key, value);

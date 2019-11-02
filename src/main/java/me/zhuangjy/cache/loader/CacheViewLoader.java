@@ -33,7 +33,7 @@ public class CacheViewLoader implements Loader {
         List<Map<String, Object>> list = DatabasePoolUtil.getResult(DatabasePoolUtil.getDS(), sql);
         list.stream()
                 .map(CacheInfo::convertFromMap)
-                .forEach(c -> tmp.put(c.getName(), c));
+                .forEach(c -> tmp.put(c.getName().toLowerCase(), c));
 
         cacheView = tmp;
     }

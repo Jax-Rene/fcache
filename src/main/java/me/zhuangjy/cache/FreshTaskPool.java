@@ -69,4 +69,13 @@ public class FreshTaskPool {
         }
     }
 
+    /**
+     * 判断目前是否所有任务都已经做完
+     * 
+     * @return
+     */
+    public static boolean isFree() {
+        return onDoingTasks.isEmpty();
+    }
+
 }

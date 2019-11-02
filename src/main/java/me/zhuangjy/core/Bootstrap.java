@@ -7,7 +7,10 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import lombok.extern.slf4j.Slf4j;
 import me.zhuangjy.cache.CacheLoader;
+import me.zhuangjy.cache.FreshTaskPool;
 import me.zhuangjy.util.StopWatchUtil;
+
+import java.util.concurrent.TimeUnit;
 
 @Slf4j
 public class Bootstrap {
@@ -17,7 +20,11 @@ public class Bootstrap {
     public static void main(String[] args) throws Exception {
 
         long ts = StopWatchUtil.start("Loading expired now.");
+        // 启动时刷新所有缓存,缓存未完全刷新时自旋等待
         CacheLoader.getInstance().freshAllExpired();
+        while (!FreshTaskPool.isFree()) {
+            TimeUnit.SECONDS.sleep(1);
+        }
         StopWatchUtil.end(ts, "Loaded suc.");
 
         EventLoopGroup bossGroup = new NioEventLoopGroup(1);
