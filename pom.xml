@@ -22,7 +22,7 @@
         <lombok.version>1.18.8</lombok.version>
         <guava.version>25.1-jre</guava.version>
         <hikaricp.version>3.3.1</hikaricp.version>
-        <fastjson.version>1.2.60</fastjson.version>
+        <fastjson.version>1.2.83</fastjson.version>
         <commons.codec.version>1.11</commons.codec.version>
     </properties>
 
